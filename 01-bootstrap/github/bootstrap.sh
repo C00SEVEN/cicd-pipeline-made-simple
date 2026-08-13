@@ -83,7 +83,7 @@ SP_OBJECT_ID=$(az ad sp create \
 cat > github-federated-credential.json <<EOF
 {
   "name": "github-lab",
-  "issuer": "https://token.actions.githubusercontent.com/",
+  "issuer": "https://token.actions.githubusercontent.com",
   "subject": "repo:${GITHUB_ORG}@${GITHUB_OWNER_ID}/${GITHUB_REPO}@${GITHUB_REPO_ID}:environment:${GITHUB_ENVIRONMENT}",
   "description": "GitHub Actions lab environment",
   "audiences": [
@@ -99,7 +99,7 @@ az ad app federated-credential create \
 rm github-federated-credential.json
 
 # ============================================================
-# RBAC
+# RBAC 
 # ============================================================
 
 az role assignment create \
@@ -108,6 +108,11 @@ az role assignment create \
   --role Contributor \
   --scope "/subscriptions/$SUBSCRIPTION_ID"
 
+az role assignment create \
+  --assignee-object-id "$SP_OBJECT_ID" \
+  --assignee-principal-type ServicePrincipal \
+  --role "Storage Blob Data Contributor" \
+  --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$BOOTSTRAP_RG/providers/Microsoft.Storage/storageAccounts/$STATE_STORAGE"
 echo
 echo "=========================================="
 echo "GitHub Bootstrap Complete"
