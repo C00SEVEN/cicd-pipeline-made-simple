@@ -17,6 +17,8 @@ APP_NAME="app-cicd-github"
 GITHUB_ORG="C00SEVEN"
 GITHUB_REPO="cicd-pipeline-made-simple"
 GITHUB_ENVIRONMENT="lab"
+GITHUB_OWNER_ID="74876620"
+GITHUB_REPO_ID="1330106308"
 
 # ============================================================
 # Azure
@@ -82,7 +84,7 @@ cat > github-federated-credential.json <<EOF
 {
   "name": "github-lab",
   "issuer": "https://token.actions.githubusercontent.com/",
-  "subject": "repo:${GITHUB_ORG}/${GITHUB_REPO}:environment:${GITHUB_ENVIRONMENT}",
+  "subject": "repo:${GITHUB_ORG}@${GITHUB_OWNER_ID}/${GITHUB_REPO}@${GITHUB_REPO_ID}:environment:${GITHUB_ENVIRONMENT}",
   "description": "GitHub Actions lab environment",
   "audiences": [
     "api://AzureADTokenExchange"
