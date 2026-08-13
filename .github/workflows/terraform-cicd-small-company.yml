@@ -66,7 +66,7 @@ jobs:
             -backend-config="resource_group_name=${{ secrets.TFSTATE_RG }}" \
             -backend-config="storage_account_name=${{ secrets.TFSTATE_STORAGE }}" \
             -backend-config="container_name=tfstate" \
-            -backend-config="key=github.tfstate"
+            -backend-config="key=github.tfstate" \
             -backend-config="use_azuread_auth=true"
         env:
           ARM_USE_OIDC: true
