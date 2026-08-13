@@ -32,6 +32,6 @@ variable "address_space" {
 variable "subnet_prefix" {
   type = list(string)
   default = [
-    "10.10.1.0/24"
+    "10.100.1.0/24"
   ]
 }

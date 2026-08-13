@@ -28,7 +28,7 @@ az account set \
   --subscription "$SUBSCRIPTION_ID"
 
 # ============================================================
-# Resource Group
+# Resource GroupP
 # ============================================================
 
 az group create \
