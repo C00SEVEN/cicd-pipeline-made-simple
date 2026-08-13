@@ -49,7 +49,7 @@ jobs:
         env:
           CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
         run: |
-          if [ "$CLIENT_ID" = "e4ef4ef2-cf53-4559-9872-0bc4670e9758" ]; then
+          if [ "$CLIENT_ID" = "313cc04c-471d-441e-ae4e-12f3901d750f" ]; then
             echo "CLIENT ID IS CORRECT"
           else
             echo "CLIENT ID IS WRONG"
