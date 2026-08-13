@@ -38,22 +38,6 @@ jobs:
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TF_VERSION }}
-      - name: Debug GitHub OIDC context
-        run: |
-          echo "Repository: $GITHUB_REPOSITORY"
-          echo "Repository owner: $GITHUB_REPOSITORY_OWNER"
-          echo "Workflow: $GITHUB_WORKFLOW"
-          echo "Ref: $GITHUB_REF"
-
-      - name: Verify Client ID
-        env:
-          CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-        run: |
-          if [ "$CLIENT_ID" = "313cc04c-471d-441e-ae4e-12f3901d750f" ]; then
-            echo "CLIENT ID IS CORRECT"
-          else
-            echo "CLIENT ID IS WRONG"
-          fi
 
       # ------------------------------------------------------------
       # Azure OIDC Login
@@ -83,6 +67,7 @@ jobs:
             -backend-config="storage_account_name=${{ secrets.TFSTATE_STORAGE }}" \
             -backend-config="container_name=tfstate" \
             -backend-config="key=github.tfstate"
+            -backend-config="use_azuread_auth=true"
         env:
           ARM_USE_OIDC: true
           ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
