@@ -45,6 +45,16 @@ jobs:
           echo "Workflow: $GITHUB_WORKFLOW"
           echo "Ref: $GITHUB_REF"
 
+      - name: Verify Client ID
+        env:
+          CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+        run: |
+          if [ "$CLIENT_ID" = "e4ef4ef2-cf53-4559-9872-0bc4670e9758" ]; then
+            echo "CLIENT ID IS CORRECT"
+          else
+            echo "CLIENT ID IS WRONG"
+          fi
+
       # ------------------------------------------------------------
       # Azure OIDC Login
       # ------------------------------------------------------------
