@@ -16,110 +16,152 @@ env:
   TF_WORKING_DIR: .
 
 jobs:
-  terraform:
-    name: Terraform Deploy
+
+# ============================================================
+# PLAN
+# ============================================================
+
+  terraform-plan:
+    name: Terraform Validation and Plan
+    runs-on: ubuntu-latest
+    steps:
+
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: ${{ env.TF_VERSION }}
+
+    - name: Azure Login
+      uses: azure/login@v2
+      with:
+        client-id: ${{ secrets.AZURE_CLIENT_ID }}
+        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+    - name: Terraform Init
+      working-directory: ${{ env.TF_WORKING_DIR }}
+      run: |
+        terraform init \
+          -backend-config="resource_group_name=${{ secrets.TFSTATE_RG }}" \
+          -backend-config="storage_account_name=${{ secrets.TFSTATE_STORAGE }}" \
+          -backend-config="container_name=tfstate" \
+          -backend-config="key=github.tfstate" \
+          -backend-config="use_azuread_auth=true"
+
+      env:
+        ARM_USE_OIDC: true
+        ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+        ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+        ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+    - name: Terraform Format
+      working-directory: ${{ env.TF_WORKING_DIR }}
+      run: terraform fmt -check -recursive
+
+    - name: Terraform Validate
+      working-directory: ${{ env.TF_WORKING_DIR }}
+      run: terraform validate
+
+    - name: TFLint
+      working-directory: ${{ env.TF_WORKING_DIR }}
+      run: |
+
+        curl -s https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh | bash
+        tflint --init
+        tflint
+
+    - name: Checkov
+      working-directory: ${{ env.TF_WORKING_DIR }}
+      run: |
+
+        python3 -m pip install --upgrade pip
+        python3 -m pip install checkov
+        checkov \
+          --directory . \
+          --framework terraform
+
+    - name: Terraform Plan
+      working-directory: ${{ env.TF_WORKING_DIR }}
+      run: terraform plan -out=tfplan
+
+      env:
+        ARM_USE_OIDC: true
+        ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+        ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+        ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+    - name: Upload Terraform Plan
+      uses: actions/upload-artifact@v4
+      with:
+
+        name: terraform-plan
+        path: ${{ env.TF_WORKING_DIR }}/tfplan
+
+# ============================================================
+# APPLY
+# ============================================================
+
+  terraform-apply:
+    name: Terraform Apply
+    needs: terraform-plan
     runs-on: ubuntu-latest
 
-    # This must match the GitHub OIDC federated credential:
-    # repo:C00SEVEN/cicd-pipeline-made-simple:environment:lab
-    environment: lab
+    # GitHub Environment approval happens here
+    environment:
+      name: lab
 
     steps:
-      # ------------------------------------------------------------
-      # Checkout
-      # ------------------------------------------------------------
-      - name: Checkout
-        uses: actions/checkout@v4
+    - name: Checkout
+      uses: actions/checkout@v4
 
-      # ------------------------------------------------------------
-      # Terraform
-      # ------------------------------------------------------------
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: ${{ env.TF_VERSION }}
+    - name: Download Terraform Plan
+      uses: actions/download-artifact@v4
+      with:
+        name: terraform-plan
 
-      # ------------------------------------------------------------
-      # Azure OIDC Login
-      # ------------------------------------------------------------
-      - name: Azure Login
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: ${{ env.TF_VERSION }}
 
-      # ------------------------------------------------------------
-      # Verify Azure Authentication
-      # ------------------------------------------------------------
-      - name: Verify Azure Login
-        run: |
-          az account show
+    - name: Azure Login
+      uses: azure/login@v2
+      with:
+        client-id: ${{ secrets.AZURE_CLIENT_ID }}
+        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      # ------------------------------------------------------------
-      # Terraform Init
-      # ------------------------------------------------------------
-      - name: Terraform Init
-        working-directory: ${{ env.TF_WORKING_DIR }}
-        run: |
-          terraform init \
-            -backend-config="resource_group_name=${{ secrets.TFSTATE_RG }}" \
-            -backend-config="storage_account_name=${{ secrets.TFSTATE_STORAGE }}" \
-            -backend-config="container_name=tfstate" \
-            -backend-config="key=github.tfstate" \
-            -backend-config="use_azuread_auth=true"
-        env:
-          ARM_USE_OIDC: true
-          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    - name: Terraform Init
+      working-directory: ${{ env.TF_WORKING_DIR }}
+      run: |
+        terraform init \
+          -backend-config="resource_group_name=${{ secrets.TFSTATE_RG }}" \
+          -backend-config="storage_account_name=${{ secrets.TFSTATE_STORAGE }}" \
+          -backend-config="container_name=tfstate" \
+          -backend-config="key=github.tfstate" \
+          -backend-config="use_azuread_auth=true"
 
-      # ------------------------------------------------------------
-      # Terraform Format Check
-      # ------------------------------------------------------------
-      - name: Terraform Format Check
-        working-directory: ${{ env.TF_WORKING_DIR }}
-        run: terraform fmt -check -recursive
+      env:
+        ARM_USE_OIDC: true
+        ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+        ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+        ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      # ------------------------------------------------------------
-      # Terraform Validate
-      # ------------------------------------------------------------
-      - name: Terraform Validate
-        working-directory: ${{ env.TF_WORKING_DIR }}
-        run: terraform validate
+    - name: Terraform Apply
+      working-directory: ${{ env.TF_WORKING_DIR }}
+      run: |
+        terraform apply -auto-approve tfplan
 
-      # ------------------------------------------------------------
-      # Terraform Plan
-      # ------------------------------------------------------------
-      - name: Terraform Plan
-        working-directory: ${{ env.TF_WORKING_DIR }}
-        run: terraform plan
-        env:
-          ARM_USE_OIDC: true
-          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      env:
+        ARM_USE_OIDC: true
+        ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+        ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+        ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      # ------------------------------------------------------------
-      # Terraform Apply
-      # ------------------------------------------------------------
-      - name: Terraform Apply
-        working-directory: ${{ env.TF_WORKING_DIR }}
-        run: terraform apply -auto-approve
-        env:
-          ARM_USE_OIDC: true
-          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-      # ------------------------------------------------------------
-      # Terraform Output
-      # ------------------------------------------------------------
-      - name: Terraform Output
-        working-directory: ${{ env.TF_WORKING_DIR }}
-        run: terraform output
-        env:
-          ARM_USE_OIDC: true
-          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    - name: Terraform Output
+      working-directory: ${{ env.TF_WORKING_DIR }}
+      
+      run: terraform output
