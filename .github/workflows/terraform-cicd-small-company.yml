@@ -1,12 +1,15 @@
 name: Terraform Azure Deployment
 
+# Trigger deployment when code is merged to main
+# Manual execution is also available
 on:
   push:
     branches:
       - main
-
   workflow_dispatch:
 
+# Required permissions for Azure OIDC authentication
+# No client secret is stored in GitHub
 permissions:
   id-token: write
   contents: read
@@ -20,12 +23,16 @@ jobs:
 # ============================================================
 # PLAN
 # ============================================================
-
+# Performs validation, security checks and creates Terraform plan
+# No infrastructure changes are made in this stage
   terraform-plan:
     name: Terraform Validation and Plan
     runs-on: ubuntu-latest
 
-    # GitHub Environment approval happens here
+    # GitHub Environment provides:
+    # - secrets
+    # - approval gates (if configured)
+    # - deployment protection rules
     environment:
       name: lab
 
@@ -39,6 +46,8 @@ jobs:
       with:
         terraform_version: ${{ env.TF_VERSION }}
 
+    # Authenticate to Azure using OIDC federation
+    # No Azure client secret is required
     - name: Azure Login
       uses: azure/login@v2
       with:
@@ -46,6 +55,8 @@ jobs:
         tenant-id: ${{ secrets.AZURE_TENANT_ID }}
         subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+    # Initialize Terraform with Azure Storage backend
+    # State is stored remotely and protected from local loss
     - name: Terraform Init
       working-directory: ${{ env.TF_WORKING_DIR }}
       run: |
@@ -61,15 +72,19 @@ jobs:
         ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
         ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
         ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
+    
+    # Validate Terraform formatting
     - name: Terraform Format
       working-directory: ${{ env.TF_WORKING_DIR }}
       run: terraform fmt -check -recursive
 
+    # Validate Terraform syntax and configuration
     - name: Terraform Validate
       working-directory: ${{ env.TF_WORKING_DIR }}
       run: terraform validate
 
+    # Terraform code quality checks
+    # Detects provider/resource best practice issues
     - name: TFLint
       working-directory: ${{ env.TF_WORKING_DIR }}
       run: |
@@ -78,6 +93,9 @@ jobs:
         tflint --init
         tflint
 
+
+    # Infrastructure security scanning
+    # Detects Azure security misconfigurations before deployment
     - name: Checkov
       working-directory: ${{ env.TF_WORKING_DIR }}
       run: |
@@ -88,6 +106,9 @@ jobs:
           --directory . \
           --framework terraform
 
+
+    # Generates execution plan
+    # The output artifact is used by the Apply stage
     - name: Terraform Plan
       working-directory: ${{ env.TF_WORKING_DIR }}
       run: terraform plan -out=tfplan
@@ -98,6 +119,7 @@ jobs:
         ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
         ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+    # Pass plan file to Apply stage
     - name: Upload Terraform Plan
       uses: actions/upload-artifact@v4
       with:
@@ -108,13 +130,16 @@ jobs:
 # ============================================================
 # APPLY
 # ============================================================
-
+# Deploys the approved Terraform plan into Azure
+# Apply only runs after successful validation and plan
   terraform-apply:
     name: Terraform Apply
     needs: terraform-plan
     runs-on: ubuntu-latest
 
     # GitHub Environment approval happens here
+    # Production approval gate
+    # Configure reviewers in GitHub Environment settings
     environment:
       name: lab
 
@@ -122,6 +147,9 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v4
 
+
+    # Download the exact Terraform plan created previously
+    # Prevents applying a different configuration than reviewed
     - name: Download Terraform Plan
       uses: actions/download-artifact@v4
       with:
@@ -132,13 +160,15 @@ jobs:
       with:
         terraform_version: ${{ env.TF_VERSION }}
 
+    # Authenticate again because each GitHub runner is temporary
     - name: Azure Login
       uses: azure/login@v2
       with:
         client-id: ${{ secrets.AZURE_CLIENT_ID }}
         tenant-id: ${{ secrets.AZURE_TENANT_ID }}
         subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
+    
+    # Reinitialize backend on new runner
     - name: Terraform Init
       working-directory: ${{ env.TF_WORKING_DIR }}
       run: |
@@ -155,6 +185,7 @@ jobs:
         ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
         ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+    # Deploy approved Terraform plan
     - name: Terraform Apply
       working-directory: ${{ env.TF_WORKING_DIR }}
       run: |
@@ -165,7 +196,8 @@ jobs:
         ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
         ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
         ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
+      
+    # Display deployed resource outputs
     - name: Terraform Output
       working-directory: ${{ env.TF_WORKING_DIR }}
 
