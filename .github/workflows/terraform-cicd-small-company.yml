@@ -24,6 +24,11 @@ jobs:
   terraform-plan:
     name: Terraform Validation and Plan
     runs-on: ubuntu-latest
+
+    # GitHub Environment approval happens here
+    environment:
+      name: lab
+      
     steps:
 
     - name: Checkout
@@ -163,5 +168,5 @@ jobs:
 
     - name: Terraform Output
       working-directory: ${{ env.TF_WORKING_DIR }}
-      
+
       run: terraform output
