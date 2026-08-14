@@ -28,7 +28,7 @@ jobs:
     # GitHub Environment approval happens here
     environment:
       name: lab
-      
+
     steps:
 
     - name: Checkout
@@ -170,3 +170,9 @@ jobs:
       working-directory: ${{ env.TF_WORKING_DIR }}
 
       run: terraform output
+
+      env:
+        ARM_USE_OIDC: true
+        ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+        ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+        ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
